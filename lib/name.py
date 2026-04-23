@@ -5,6 +5,7 @@ import json
 import os
 import re
 import sys
+import time
 import glob
 
 
@@ -244,6 +245,13 @@ def main():
     # Write names
     for s in unnamed:
         try:
+            # Skip sessions that look live — Claude Code may still be writing
+            # to them. Appending our custom-title line could corrupt a
+            # mid-flight write or race with the client.
+            if time.time() - os.path.getmtime(s["path"]) < 60:
+                print(f"  Skipped (live): {s['id'][:12]}...")
+                continue
+
             entry = json.dumps({
                 "type": "custom-title",
                 "customTitle": s["name"],
