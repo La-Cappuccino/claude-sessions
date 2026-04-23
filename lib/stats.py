@@ -53,8 +53,9 @@ def calculate_cost(usage, tier):
     cache_create = usage.get("cache_creation_input_tokens", 0)
     cache_read = usage.get("cache_read_input_tokens", 0)
 
-    # Regular input (subtract cached tokens since they're priced differently)
-    regular_input = max(0, input_tokens - cache_read)
+    # Anthropic's API returns input_tokens as already non-cached input;
+    # cache_read/cache_create are reported separately. Don't subtract again.
+    regular_input = input_tokens
     input_cost = (regular_input / 1_000_000) * pricing["input"]
 
     # Cache creation: input price + 25% premium
