@@ -6,6 +6,23 @@ import os
 import sys
 import glob
 import shutil
+import subprocess
+
+
+def trash_file(path):
+    """Move a file to the system trash. Falls back to os.remove on non-macOS
+    systems without the `trash` CLI, so a recovery path exists everywhere.
+    """
+    if shutil.which("trash"):
+        subprocess.run(["trash", path], check=True)
+    elif sys.platform == "darwin":
+        subprocess.run([
+            "osascript", "-e",
+            f'tell app "Finder" to delete POSIX file "{path}"'
+        ], check=True, capture_output=True)
+    else:
+        print(f"  Warning: no trash tool available, falling back to os.remove for {path}")
+        os.remove(path)
 
 
 def count_user_messages(jsonl_path):
@@ -99,12 +116,12 @@ def main():
     deleted = 0
     for s in empty:
         try:
-            os.remove(s["path"])
+            trash_file(s["path"])
             deleted += 1
         except Exception as e:
-            print(f"  Error deleting {s['id']}: {e}")
+            print(f"  Error trashing {s['id']}: {e}")
 
-    print(f"{GREEN}Deleted {deleted} empty sessions.{RESET} Freed ~{total_size:.0f} KB.")
+    print(f"{GREEN}Moved {deleted} empty sessions to trash.{RESET} Freed ~{total_size:.0f} KB.")
 
 
 if __name__ == "__main__":
