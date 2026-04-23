@@ -257,8 +257,24 @@ def main():
                 "customTitle": s["name"],
                 "sessionId": s["id"],
             })
+
+            # JSONL rule: exactly one newline between records. Check the
+            # file's last byte — if it already ends with "\n", we just
+            # append entry + "\n". If not, prepend a newline. Avoids the
+            # blank "\n\n{entry}" pattern that confuses line-based parsers.
+            needs_leading_newline = False
+            try:
+                with open(s["path"], "rb") as rf:
+                    rf.seek(-1, 2)  # last byte
+                    last = rf.read(1)
+                    if last != b"\n":
+                        needs_leading_newline = True
+            except OSError:
+                pass  # empty file — no leading newline needed
+
             with open(s["path"], "a") as f:
-                f.write("\n" + entry)
+                prefix = "\n" if needs_leading_newline else ""
+                f.write(prefix + entry + "\n")
             named_count += 1
         except Exception as e:
             print(f"  Error naming {s['id']}: {e}")
