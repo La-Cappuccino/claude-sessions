@@ -7,24 +7,9 @@ import sys
 import glob
 from datetime import datetime
 
-
-# Same pricing as stats.py
-PRICING = {
-    "opus": {"input": 15.0, "output": 75.0},
-    "sonnet": {"input": 3.0, "output": 15.0},
-    "haiku": {"input": 0.25, "output": 1.25},
-}
-
-
-def detect_model_tier(model_name):
-    if not model_name:
-        return "sonnet"
-    m = model_name.lower()
-    if "opus" in m:
-        return "opus"
-    elif "haiku" in m:
-        return "haiku"
-    return "sonnet"
+# Shared pricing source of truth (keeps cost numbers in sync with stats.py)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from pricing import PRICING, detect_model_tier, calculate_cost  # noqa: E402,F401
 
 
 def parse_session(jsonl_path):
@@ -89,11 +74,7 @@ def parse_session(jsonl_path):
                             total_cache_read += usage.get("cache_read_input_tokens", 0)
 
                             tier = detect_model_tier(m)
-                            pricing = PRICING.get(tier, PRICING["sonnet"])
-                            inp = usage.get("input_tokens", 0)
-                            out = usage.get("output_tokens", 0)
-                            cost += (inp / 1_000_000) * pricing["input"]
-                            cost += (out / 1_000_000) * pricing["output"]
+                            cost += calculate_cost(usage, tier)
 
                 except (json.JSONDecodeError, KeyError):
                     continue
