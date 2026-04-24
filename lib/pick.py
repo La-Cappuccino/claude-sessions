@@ -18,28 +18,27 @@ def get_sessions():
     base = os.path.join(home, ".claude", "projects")
     sessions = []
 
-    for proj_dir in glob.glob(f"{base}/*/"):
-        for jsonl_path in glob.glob(f"{proj_dir}*.jsonl"):
-            meta = parse_session_meta(jsonl_path, first_msg_len=80)
-            if meta is None:
-                continue
+    for jsonl_path in glob.glob(f"{base}/**/*.jsonl", recursive=True):
+        meta = parse_session_meta(jsonl_path, first_msg_len=80)
+        if meta is None:
+            continue
 
-            session_id = meta["id"]
-            cwd = meta["cwd"]
-            session_name = meta["session_name"]
-            first_msg = meta["first_message"]
-            session_start = meta["session_start"]
+        session_id = meta["id"]
+        cwd = meta["cwd"]
+        session_name = meta["session_name"]
+        first_msg = meta["first_message"]
+        session_start = meta["session_start"]
 
-            short_dir = cwd or "(unknown)"
-            if short_dir.startswith(home + "/"):
-                short_dir = "~/" + short_dir[len(home) + 1:]
-            elif short_dir == home:
-                short_dir = "~"
+        short_dir = cwd or "(unknown)"
+        if short_dir.startswith(home + "/"):
+            short_dir = "~/" + short_dir[len(home) + 1:]
+        elif short_dir == home:
+            short_dir = "~"
 
-            name = session_name or first_msg or "(empty)"
-            line = f"{session_start.strftime('%m-%d %H:%M')}  {name[:40]:<40}  {short_dir:<35}  {session_id}"
+        name = session_name or first_msg or "(empty)"
+        line = f"{session_start.strftime('%m-%d %H:%M')}  {name[:40]:<40}  {short_dir:<35}  {session_id}"
 
-            sessions.append((session_start.timestamp(), line, session_id))
+        sessions.append((session_start.timestamp(), line, session_id))
 
     sessions.sort(key=lambda x: -x[0])
     return sessions

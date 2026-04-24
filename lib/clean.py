@@ -74,20 +74,19 @@ def main():
 
     threshold = 1 if include_tiny else 0
 
-    for proj_dir in glob.glob(f"{base}/*/"):
-        for jsonl_path in glob.glob(f"{proj_dir}*.jsonl"):
-            total += 1
-            msg_count = count_user_messages(jsonl_path)
-            if msg_count <= threshold:
-                size_kb = os.path.getsize(jsonl_path) / 1024
-                total_size += size_kb
-                session_id = os.path.basename(jsonl_path).replace(".jsonl", "")
-                empty.append({
-                    "path": jsonl_path,
-                    "id": session_id,
-                    "size": size_kb,
-                    "msgs": msg_count,
-                })
+    for jsonl_path in glob.glob(f"{base}/**/*.jsonl", recursive=True):
+        total += 1
+        msg_count = count_user_messages(jsonl_path)
+        if msg_count <= threshold:
+            size_kb = os.path.getsize(jsonl_path) / 1024
+            total_size += size_kb
+            session_id = os.path.basename(jsonl_path).replace(".jsonl", "")
+            empty.append({
+                "path": jsonl_path,
+                "id": session_id,
+                "size": size_kb,
+                "msgs": msg_count,
+            })
 
     if not empty:
         print(f"\n{GREEN}No empty sessions found.{RESET} ({total} total sessions)")

@@ -157,38 +157,37 @@ def main():
     earliest_date = None
     latest_date = None
 
-    for proj_dir in glob.glob(f"{base}/*/"):
-        for jsonl_path in glob.glob(f"{proj_dir}*.jsonl"):
-            stats = parse_session_stats(jsonl_path, min_date)
-            if not stats:
-                continue
+    for jsonl_path in glob.glob(f"{base}/**/*.jsonl", recursive=True):
+        stats = parse_session_stats(jsonl_path, min_date)
+        if not stats:
+            continue
 
-            total_stats["sessions"] += 1
-            total_stats["input_tokens"] += stats["input_tokens"]
-            total_stats["output_tokens"] += stats["output_tokens"]
-            total_stats["cache_creation_input_tokens"] += stats["cache_creation_input_tokens"]
-            total_stats["cache_read_input_tokens"] += stats["cache_read_input_tokens"]
-            total_stats["cost"] += stats["cost"]
-            total_stats["messages"] += stats["messages"]
+        total_stats["sessions"] += 1
+        total_stats["input_tokens"] += stats["input_tokens"]
+        total_stats["output_tokens"] += stats["output_tokens"]
+        total_stats["cache_creation_input_tokens"] += stats["cache_creation_input_tokens"]
+        total_stats["cache_read_input_tokens"] += stats["cache_read_input_tokens"]
+        total_stats["cost"] += stats["cost"]
+        total_stats["messages"] += stats["messages"]
 
-            # Track by project
-            cwd = stats["cwd"] or "(unknown)"
-            project_name = os.path.basename(cwd) if cwd != "(unknown)" else cwd
-            project_costs[project_name] += stats["cost"]
-            project_sessions[project_name] += 1
+        # Track by project
+        cwd = stats["cwd"] or "(unknown)"
+        project_name = os.path.basename(cwd) if cwd != "(unknown)" else cwd
+        project_costs[project_name] += stats["cost"]
+        project_sessions[project_name] += 1
 
-            # Track model
-            if stats["model"]:
-                tier = detect_model_tier(stats["model"])
-                model_usage[tier] += stats["messages"]
+        # Track model
+        if stats["model"]:
+            tier = detect_model_tier(stats["model"])
+            model_usage[tier] += stats["messages"]
 
-            # Track date range
-            if stats["first_date"]:
-                if not earliest_date or stats["first_date"] < earliest_date:
-                    earliest_date = stats["first_date"]
-            if stats["last_date"]:
-                if not latest_date or stats["last_date"] > latest_date:
-                    latest_date = stats["last_date"]
+        # Track date range
+        if stats["first_date"]:
+            if not earliest_date or stats["first_date"] < earliest_date:
+                earliest_date = stats["first_date"]
+        if stats["last_date"]:
+            if not latest_date or stats["last_date"] > latest_date:
+                latest_date = stats["last_date"]
 
     # Display
     period = f"last {days} days" if days else "all time"

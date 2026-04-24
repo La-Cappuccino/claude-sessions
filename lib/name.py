@@ -194,32 +194,31 @@ def main():
     CYAN = "\033[36m"
     RESET = "\033[0m"
 
-    for proj_dir in glob.glob(f"{base}/*/"):
-        for jsonl_path in glob.glob(f"{proj_dir}*.jsonl"):
-            cwd, has_title, messages = get_session_info(jsonl_path)
+    for jsonl_path in glob.glob(f"{base}/**/*.jsonl", recursive=True):
+        cwd, has_title, messages = get_session_info(jsonl_path)
 
-            if has_title:
-                skipped_count += 1
-                continue
+        if has_title:
+            skipped_count += 1
+            continue
 
-            if not messages:
-                continue
+        if not messages:
+            continue
 
-            project_name = os.path.basename(cwd) if cwd else ""
-            name = extract_name(project_name, messages, cwd)
+        project_name = os.path.basename(cwd) if cwd else ""
+        name = extract_name(project_name, messages, cwd)
 
-            if not name:
-                continue
+        if not name:
+            continue
 
-            session_id = os.path.basename(jsonl_path).replace(".jsonl", "")
-            preview = clean_message(messages[0])[:70] if messages else ""
+        session_id = os.path.basename(jsonl_path).replace(".jsonl", "")
+        preview = clean_message(messages[0])[:70] if messages else ""
 
-            unnamed.append({
-                "path": jsonl_path,
-                "id": session_id,
-                "name": name,
-                "preview": preview,
-            })
+        unnamed.append({
+            "path": jsonl_path,
+            "id": session_id,
+            "name": name,
+            "preview": preview,
+        })
 
     if not unnamed:
         print(f"\n{GREEN}All sessions already have names.{RESET} ({skipped_count} named)")

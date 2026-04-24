@@ -55,11 +55,10 @@ def main():
     base = os.path.join(home, ".claude", "projects")
     sessions = []
 
-    for proj_dir in glob.glob(f"{base}/*/"):
-        for jsonl_path in glob.glob(f"{proj_dir}*.jsonl"):
-            s = parse_session(jsonl_path)
-            if s:
-                sessions.append(s)
+    for jsonl_path in glob.glob(f"{base}/**/*.jsonl", recursive=True):
+        s = parse_session(jsonl_path)
+        if s:
+            sessions.append(s)
 
     sessions.sort(key=lambda x: x["session_start"], reverse=True)
 
