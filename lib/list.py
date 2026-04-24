@@ -8,6 +8,25 @@ import glob
 from datetime import datetime
 
 
+def get_session_start(jsonl_path):
+    """Return the first entry's timestamp. Falls back to file mtime if no
+    timestamped entry found (happens for ~3% of sessions that start with
+    permission-mode/file-history-snapshot/agent-setting/custom-title)."""
+    try:
+        with open(jsonl_path, "r") as f:
+            for line in f:
+                try:
+                    d = json.loads(line)
+                    ts = d.get("timestamp")
+                    if ts:
+                        return datetime.fromisoformat(ts.replace("Z", "+00:00")).replace(tzinfo=None)
+                except (json.JSONDecodeError, KeyError):
+                    continue
+    except Exception:
+        pass
+    return datetime.fromtimestamp(os.path.getmtime(jsonl_path))
+
+
 def get_cwd_from_jsonl(jsonl_path):
     """Extract the real cwd from JSONL entries instead of decoding folder name."""
     try:
@@ -90,7 +109,8 @@ def parse_session(jsonl_path):
         return None
 
     mtime = os.path.getmtime(jsonl_path)
-    dt = datetime.fromtimestamp(mtime)
+    last_activity = datetime.fromtimestamp(mtime)
+    session_start = get_session_start(jsonl_path)
     size_kb = os.path.getsize(jsonl_path) / 1024
 
     return {
@@ -98,7 +118,9 @@ def parse_session(jsonl_path):
         "dir": cwd or "(unknown)",
         "name": session_name,
         "first_msg": first_msg or "(empty session)",
-        "date": dt.strftime("%Y-%m-%d %H:%M"),
+        "date": session_start.strftime("%Y-%m-%d %H:%M"),
+        "session_start": session_start,
+        "last_activity": last_activity,
         "mtime": mtime,
         "size": size_kb,
         "user_msg_count": user_msg_count,
@@ -132,7 +154,7 @@ def main():
             if s:
                 sessions.append(s)
 
-    sessions.sort(key=lambda x: x["mtime"], reverse=True)
+    sessions.sort(key=lambda x: x["session_start"], reverse=True)
 
     # Filter by search term
     if search:
@@ -175,12 +197,22 @@ def main():
         name_color = WHITE if s["name"] else DIM
         size_str = f"{s['size']:.0f}KB"
 
+        # Show last-active annotation when session_start and last_activity
+        # differ by more than 1 day — reveals long-running / resumed sessions.
+        last_active_suffix = ""
+        delta = s["last_activity"] - s["session_start"]
+        if delta.total_seconds() > 86400:
+            last_active_suffix = (
+                f" {DIM}(last active {s['last_activity'].strftime('%Y-%m-%d')}){RESET}"
+            )
+
         print(
             f"{CYAN}{i:<4}{RESET} "
             f"{GREEN}{s['date']:<18}{RESET} "
             f"{name_color}{name[:29]:<30}{RESET} "
             f"{short_dir[:39]:<40} "
             f"{DIM}{size_str:>6}{RESET}"
+            f"{last_active_suffix}"
         )
         # Preview of first message
         if s["first_msg"] and s["first_msg"] != "(empty session)":

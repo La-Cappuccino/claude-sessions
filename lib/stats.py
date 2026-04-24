@@ -28,13 +28,12 @@ def parse_session_stats(jsonl_path, min_date=None):
         "last_date": None,
     }
 
-    try:
-        mtime = os.path.getmtime(jsonl_path)
-        if min_date:
-            file_date = datetime.fromtimestamp(mtime)
-            if file_date < min_date:
-                return None
+    # min_date is compared against each entry's own timestamp (naive local
+    # datetime). Normalize here so comparisons don't mix tz-aware and naive.
+    if min_date is not None and min_date.tzinfo is not None:
+        min_date = min_date.replace(tzinfo=None)
 
+    try:
         with open(jsonl_path, "r") as f:
             for line in f:
                 try:
@@ -46,20 +45,32 @@ def parse_session_stats(jsonl_path, min_date=None):
                         if c and c.startswith("/"):
                             stats["cwd"] = c
 
-                    # Get timestamp
+                    # Parse entry timestamp once; used for both window filter
+                    # and first/last tracking.
+                    entry_dt = None
                     ts = data.get("timestamp")
                     if ts:
                         try:
-                            dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-                            if not stats["first_date"] or dt < stats["first_date"]:
-                                stats["first_date"] = dt
-                            if not stats["last_date"] or dt > stats["last_date"]:
-                                stats["last_date"] = dt
+                            entry_dt = datetime.fromisoformat(
+                                ts.replace("Z", "+00:00")
+                            ).replace(tzinfo=None)
+                            if not stats["first_date"] or entry_dt < stats["first_date"]:
+                                stats["first_date"] = entry_dt
+                            if not stats["last_date"] or entry_dt > stats["last_date"]:
+                                stats["last_date"] = entry_dt
                         except (ValueError, TypeError):
                             pass
 
                     # Assistant messages have usage data
                     if data.get("type") == "assistant":
+                        # Per-entry window filter: only count usage from
+                        # entries whose timestamp is within the window.
+                        # Entries without a timestamp are skipped when
+                        # filtering (conservative — avoids over-counting).
+                        if min_date is not None:
+                            if entry_dt is None or entry_dt < min_date:
+                                continue
+
                         msg = data.get("message", {})
                         usage = msg.get("usage", {})
                         model = msg.get("model", "")

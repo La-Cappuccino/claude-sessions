@@ -12,6 +12,25 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from pricing import PRICING, detect_model_tier, calculate_cost  # noqa: E402,F401
 
 
+def get_session_start(jsonl_path):
+    """Return the first entry's timestamp. Falls back to file mtime if no
+    timestamped entry found (happens for ~3% of sessions that start with
+    permission-mode/file-history-snapshot/agent-setting/custom-title)."""
+    try:
+        with open(jsonl_path, "r") as f:
+            for line in f:
+                try:
+                    d = json.loads(line)
+                    ts = d.get("timestamp")
+                    if ts:
+                        return datetime.fromisoformat(ts.replace("Z", "+00:00")).replace(tzinfo=None)
+                except (json.JSONDecodeError, KeyError):
+                    continue
+    except Exception:
+        pass
+    return datetime.fromtimestamp(os.path.getmtime(jsonl_path))
+
+
 def parse_session(jsonl_path):
     session_id = os.path.basename(jsonl_path).replace(".jsonl", "")
     session_name = None
@@ -82,14 +101,16 @@ def parse_session(jsonl_path):
         return None
 
     mtime = os.path.getmtime(jsonl_path)
-    dt = datetime.fromtimestamp(mtime)
+    last_activity = datetime.fromtimestamp(mtime)
+    session_start = get_session_start(jsonl_path)
 
     return {
         "id": session_id,
         "name": session_name,
         "cwd": cwd,
         "first_message": first_msg,
-        "date": dt.isoformat(),
+        "start_date": session_start.isoformat(),
+        "last_activity": last_activity.isoformat(),
         "model": model,
         "user_messages": user_msg_count,
         "tokens": {
@@ -121,7 +142,7 @@ def main():
             if s:
                 sessions.append(s)
 
-    sessions.sort(key=lambda x: x["date"], reverse=True)
+    sessions.sort(key=lambda x: x["start_date"], reverse=True)
 
     output = json.dumps(sessions, indent=2, ensure_ascii=False)
 

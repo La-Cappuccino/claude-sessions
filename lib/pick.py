@@ -10,6 +10,25 @@ import shutil
 from datetime import datetime
 
 
+def get_session_start(jsonl_path):
+    """Return the first entry's timestamp. Falls back to file mtime if no
+    timestamped entry found (happens for ~3% of sessions that start with
+    permission-mode/file-history-snapshot/agent-setting/custom-title)."""
+    try:
+        with open(jsonl_path, "r") as f:
+            for line in f:
+                try:
+                    d = json.loads(line)
+                    ts = d.get("timestamp")
+                    if ts:
+                        return datetime.fromisoformat(ts.replace("Z", "+00:00")).replace(tzinfo=None)
+                except (json.JSONDecodeError, KeyError):
+                    continue
+    except Exception:
+        pass
+    return datetime.fromtimestamp(os.path.getmtime(jsonl_path))
+
+
 def get_sessions():
     """Get all sessions sorted by most recent."""
     home = os.path.expanduser("~")
@@ -54,8 +73,7 @@ def get_sessions():
             except Exception:
                 continue
 
-            mtime = os.path.getmtime(jsonl_path)
-            dt = datetime.fromtimestamp(mtime)
+            session_start = get_session_start(jsonl_path)
 
             short_dir = cwd or "(unknown)"
             if short_dir.startswith(home + "/"):
@@ -64,9 +82,9 @@ def get_sessions():
                 short_dir = "~"
 
             name = session_name or first_msg or "(empty)"
-            line = f"{dt.strftime('%m-%d %H:%M')}  {name[:40]:<40}  {short_dir:<35}  {session_id}"
+            line = f"{session_start.strftime('%m-%d %H:%M')}  {name[:40]:<40}  {short_dir:<35}  {session_id}"
 
-            sessions.append((mtime, line, session_id))
+            sessions.append((session_start.timestamp(), line, session_id))
 
     sessions.sort(key=lambda x: -x[0])
     return sessions
