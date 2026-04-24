@@ -68,9 +68,13 @@ def get_sessions():
                                             if isinstance(c, dict) and c.get("type") == "text":
                                                 first_msg = c["text"][:80].replace("\n", " ").strip()
                                                 break
-                        except (json.JSONDecodeError, KeyError):
+                        except (json.JSONDecodeError, KeyError, AttributeError, TypeError):
                             continue
-            except Exception:
+            except Exception as e:
+                print(
+                    f"  Warning: failed to parse {jsonl_path}: {type(e).__name__}: {e}",
+                    file=sys.stderr,
+                )
                 continue
 
             session_start = get_session_start(jsonl_path)

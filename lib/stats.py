@@ -92,9 +92,13 @@ def parse_session_stats(jsonl_path, min_date=None):
                             stats["cost"] += calculate_cost(usage, tier)
                             stats["messages"] += 1
 
-                except (json.JSONDecodeError, KeyError):
+                except (json.JSONDecodeError, KeyError, AttributeError, TypeError):
                     continue
-    except Exception:
+    except Exception as e:
+        print(
+            f"  Warning: failed to parse {jsonl_path}: {type(e).__name__}: {e}",
+            file=sys.stderr,
+        )
         return None
 
     if stats["messages"] == 0:

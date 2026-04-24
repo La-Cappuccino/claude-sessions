@@ -95,9 +95,13 @@ def parse_session(jsonl_path):
                             tier = detect_model_tier(m)
                             cost += calculate_cost(usage, tier)
 
-                except (json.JSONDecodeError, KeyError):
+                except (json.JSONDecodeError, KeyError, AttributeError, TypeError):
                     continue
-    except Exception:
+    except Exception as e:
+        print(
+            f"  Warning: failed to parse {jsonl_path}: {type(e).__name__}: {e}",
+            file=sys.stderr,
+        )
         return None
 
     mtime = os.path.getmtime(jsonl_path)
