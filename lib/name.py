@@ -58,6 +58,24 @@ def clean_message(text):
     return text
 
 
+PAPERCLIP_AGENT_RE = re.compile(
+    r"^[-\s]*You are agent [0-9a-f-]+\s*(?:\(([^)]+)\))?",
+    re.IGNORECASE
+)
+
+
+def extract_paperclip_title(messages):
+    """If this looks like a Paperclip agent session, return 'Paperclip <Role>'
+    (e.g., 'Paperclip AI Engineer') or None."""
+    if not messages:
+        return None
+    m = PAPERCLIP_AGENT_RE.match(messages[0])
+    if not m:
+        return None
+    role = m.group(1) or "Agent"
+    return f"Paperclip {role.strip()}"
+
+
 def extract_topic(text):
     """Extract the core topic from a message — what the user is actually asking about."""
     text = clean_message(text)
@@ -90,6 +108,12 @@ def extract_topic(text):
 
 def extract_name(project_name, messages, cwd):
     """Generate a session name from project context + message content."""
+    # Paperclip agent sessions — pull role from prompt before falling through
+    # to the generic extractor (which would titlecase the UUID project dir).
+    pc_title = extract_paperclip_title(messages)
+    if pc_title:
+        return pc_title
+
     # Get project alias
     proj = PROJECT_ALIASES.get(project_name, "")
     if not proj and project_name:
