@@ -10,15 +10,20 @@ import glob
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from pricing import PRICING, detect_model_tier, calculate_cost  # noqa: E402,F401
 # Shared JSONL session parsing (see lib/parser.py).
-from parser import parse_session_meta, iter_entries  # noqa: E402,F401
+from parser import parse_session_meta, iter_entries, is_paperclip_session  # noqa: E402,F401
 
 
-def parse_session(jsonl_path):
+def parse_session(jsonl_path, include_paperclip=False):
     """Build the export record: parse_session_meta() handles metadata; a
     light second pass here aggregates tokens & cost (kept here because
-    export.py and stats.py are the only commands that need usage data)."""
+    export.py and stats.py are the only commands that need usage data).
+
+    Returns None for Paperclip agent sub-sessions unless include_paperclip=True."""
     meta = parse_session_meta(jsonl_path, first_msg_len=200)
     if meta is None:
+        return None
+
+    if not include_paperclip and is_paperclip_session(meta):
         return None
 
     total_input = 0
@@ -70,6 +75,7 @@ def parse_session(jsonl_path):
 def main():
     output_file = None
     args = sys.argv[1:]
+    include_paperclip = "--all" in args
     if "--output" in args:
         idx = args.index("--output")
         if idx + 1 < len(args):
@@ -80,7 +86,7 @@ def main():
     sessions = []
 
     for jsonl_path in glob.glob(f"{base}/**/*.jsonl", recursive=True):
-        s = parse_session(jsonl_path)
+        s = parse_session(jsonl_path, include_paperclip=include_paperclip)
         if s:
             sessions.append(s)
 

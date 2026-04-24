@@ -7,7 +7,7 @@ import glob
 
 # Shared JSONL session parsing (see lib/parser.py).
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from parser import parse_session_meta, get_session_start  # noqa: E402,F401
+from parser import parse_session_meta, get_session_start, is_paperclip_session  # noqa: E402,F401
 
 
 def parse_session(jsonl_path):
@@ -31,6 +31,7 @@ def parse_session(jsonl_path):
         "mtime": last_activity.timestamp(),
         "size": meta["size_kb"],
         "user_msg_count": meta["user_msg_count"],
+        "is_paperclip": is_paperclip_session(meta),
     }
 
 
@@ -39,6 +40,9 @@ def main():
     search = ""
 
     args = sys.argv[1:]
+    show_all = "--all" in args
+    args = [a for a in args if a != "--all"]
+
     if args:
         try:
             count = int(args[0])
@@ -61,6 +65,14 @@ def main():
             sessions.append(s)
 
     sessions.sort(key=lambda x: x["session_start"], reverse=True)
+
+    # Filter out Paperclip agent sub-sessions by default. After recursive glob,
+    # agent heartbeats can swamp daily views — hide unless --all.
+    hidden_paperclip = 0
+    if not show_all:
+        before = len(sessions)
+        sessions = [s for s in sessions if not s.get("is_paperclip")]
+        hidden_paperclip = before - len(sessions)
 
     # Filter by search term
     if search:
@@ -125,6 +137,10 @@ def main():
             preview = s["first_msg"][:80]
             print(f"     {DIM}{preview}{RESET}")
         print(f"     {YELLOW}claude --resume {s['id']}{RESET}")
+        print()
+
+    if hidden_paperclip and not show_all:
+        print(f"{DIM}(hiding {hidden_paperclip} Paperclip agent sessions — use --all to show){RESET}")
         print()
 
 

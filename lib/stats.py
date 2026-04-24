@@ -11,6 +11,7 @@ from collections import defaultdict
 # Shared pricing source of truth
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from pricing import PRICING, detect_model_tier, calculate_cost  # noqa: E402,F401
+from parser import parse_session_meta, is_paperclip_session  # noqa: E402,F401
 
 
 def parse_session_stats(jsonl_path, min_date=None):
@@ -119,6 +120,8 @@ def format_tokens(n):
 def main():
     days = None
     args = sys.argv[1:]
+    exclude_paperclip = "--exclude-paperclip" in args
+    args = [a for a in args if a != "--exclude-paperclip"]
     if args:
         try:
             days = int(args[0])
@@ -158,6 +161,11 @@ def main():
     latest_date = None
 
     for jsonl_path in glob.glob(f"{base}/**/*.jsonl", recursive=True):
+        if exclude_paperclip:
+            meta = parse_session_meta(jsonl_path, first_msg_len=120)
+            if meta and is_paperclip_session(meta):
+                continue
+
         stats = parse_session_stats(jsonl_path, min_date)
         if not stats:
             continue

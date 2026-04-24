@@ -13,8 +13,26 @@ unifying.
 
 import json
 import os
+import re
 import sys
 from datetime import datetime
+
+
+PAPERCLIP_AGENT_RE = re.compile(
+    r"^[-\s]*You are agent [0-9a-f]{8}-[0-9a-f]{4}", re.IGNORECASE
+)
+
+
+def is_paperclip_session(meta):
+    """Detect Paperclip agent sub-sessions (first message starts with
+    'You are agent <uuid>'). Also catches cwd patterns containing '.paperclip/'."""
+    cwd = (meta.get("cwd") or "")
+    if ".paperclip/" in cwd or "/paperclip/" in cwd:
+        return True
+    first = (meta.get("first_message") or "")
+    if PAPERCLIP_AGENT_RE.match(first):
+        return True
+    return False
 
 
 def get_session_start(jsonl_path):

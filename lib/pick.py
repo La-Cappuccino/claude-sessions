@@ -9,11 +9,13 @@ import shutil
 
 # Shared JSONL session parsing (see lib/parser.py).
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from parser import parse_session_meta, get_session_start  # noqa: E402,F401
+from parser import parse_session_meta, get_session_start, is_paperclip_session  # noqa: E402,F401
 
 
-def get_sessions():
-    """Get all sessions sorted by session_start (most recent first)."""
+def get_sessions(show_all=False):
+    """Get all sessions sorted by session_start (most recent first).
+
+    Paperclip agent sub-sessions are filtered out unless show_all=True."""
     home = os.path.expanduser("~")
     base = os.path.join(home, ".claude", "projects")
     sessions = []
@@ -21,6 +23,9 @@ def get_sessions():
     for jsonl_path in glob.glob(f"{base}/**/*.jsonl", recursive=True):
         meta = parse_session_meta(jsonl_path, first_msg_len=80)
         if meta is None:
+            continue
+
+        if not show_all and is_paperclip_session(meta):
             continue
 
         session_id = meta["id"]
@@ -51,7 +56,8 @@ def main():
         print("  brew install fzf")
         sys.exit(1)
 
-    sessions = get_sessions()
+    show_all = "--all" in sys.argv
+    sessions = get_sessions(show_all=show_all)
     if not sessions:
         print("No sessions found.")
         sys.exit(1)
