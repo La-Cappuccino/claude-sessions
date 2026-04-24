@@ -1,83 +1,34 @@
 #!/usr/bin/env python3
 """Fuzzy session picker using fzf for quick resume."""
 
-import json
 import os
 import sys
 import glob
 import subprocess
 import shutil
-from datetime import datetime
 
-
-def get_session_start(jsonl_path):
-    """Return the first entry's timestamp. Falls back to file mtime if no
-    timestamped entry found (happens for ~3% of sessions that start with
-    permission-mode/file-history-snapshot/agent-setting/custom-title)."""
-    try:
-        with open(jsonl_path, "r") as f:
-            for line in f:
-                try:
-                    d = json.loads(line)
-                    ts = d.get("timestamp")
-                    if ts:
-                        return datetime.fromisoformat(ts.replace("Z", "+00:00")).replace(tzinfo=None)
-                except (json.JSONDecodeError, KeyError):
-                    continue
-    except Exception:
-        pass
-    return datetime.fromtimestamp(os.path.getmtime(jsonl_path))
+# Shared JSONL session parsing (see lib/parser.py).
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from parser import parse_session_meta, get_session_start  # noqa: E402,F401
 
 
 def get_sessions():
-    """Get all sessions sorted by most recent."""
+    """Get all sessions sorted by session_start (most recent first)."""
     home = os.path.expanduser("~")
     base = os.path.join(home, ".claude", "projects")
     sessions = []
 
     for proj_dir in glob.glob(f"{base}/*/"):
         for jsonl_path in glob.glob(f"{proj_dir}*.jsonl"):
-            session_id = os.path.basename(jsonl_path).replace(".jsonl", "")
-            session_name = None
-            first_msg = None
-            cwd = None
-
-            try:
-                with open(jsonl_path, "r") as f:
-                    for line in f:
-                        try:
-                            data = json.loads(line)
-                            if not cwd:
-                                c = data.get("cwd")
-                                if c and c.startswith("/"):
-                                    cwd = c
-                            if data.get("type") == "custom-title":
-                                session_name = data.get("customTitle")
-                            if data.get("type") == "summary":
-                                t = data.get("summary", {}).get("title")
-                                if t and not session_name:
-                                    session_name = t
-                            if data.get("type") == "user" and not first_msg:
-                                msg = data.get("message", {})
-                                if msg.get("role") == "user":
-                                    content = msg.get("content", "")
-                                    if isinstance(content, str) and content.strip():
-                                        first_msg = content[:80].replace("\n", " ").strip()
-                                    elif isinstance(content, list):
-                                        for c in content:
-                                            if isinstance(c, dict) and c.get("type") == "text":
-                                                first_msg = c["text"][:80].replace("\n", " ").strip()
-                                                break
-                        except (json.JSONDecodeError, KeyError, AttributeError, TypeError):
-                            continue
-            except Exception as e:
-                print(
-                    f"  Warning: failed to parse {jsonl_path}: {type(e).__name__}: {e}",
-                    file=sys.stderr,
-                )
+            meta = parse_session_meta(jsonl_path, first_msg_len=80)
+            if meta is None:
                 continue
 
-            session_start = get_session_start(jsonl_path)
+            session_id = meta["id"]
+            cwd = meta["cwd"]
+            session_name = meta["session_name"]
+            first_msg = meta["first_message"]
+            session_start = meta["session_start"]
 
             short_dir = cwd or "(unknown)"
             if short_dir.startswith(home + "/"):

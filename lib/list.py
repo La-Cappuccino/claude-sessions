@@ -1,133 +1,36 @@
 #!/usr/bin/env python3
 """List and search Claude Code sessions with correct path resolution."""
 
-import json
 import os
 import sys
 import glob
-from datetime import datetime
 
-
-def get_session_start(jsonl_path):
-    """Return the first entry's timestamp. Falls back to file mtime if no
-    timestamped entry found (happens for ~3% of sessions that start with
-    permission-mode/file-history-snapshot/agent-setting/custom-title)."""
-    try:
-        with open(jsonl_path, "r") as f:
-            for line in f:
-                try:
-                    d = json.loads(line)
-                    ts = d.get("timestamp")
-                    if ts:
-                        return datetime.fromisoformat(ts.replace("Z", "+00:00")).replace(tzinfo=None)
-                except (json.JSONDecodeError, KeyError):
-                    continue
-    except Exception:
-        pass
-    return datetime.fromtimestamp(os.path.getmtime(jsonl_path))
-
-
-def get_cwd_from_jsonl(jsonl_path):
-    """Extract the real cwd from JSONL entries instead of decoding folder name."""
-    try:
-        with open(jsonl_path, "r") as f:
-            for line in f:
-                try:
-                    # Fast string search before parsing JSON
-                    if '"cwd"' not in line:
-                        continue
-                    data = json.loads(line)
-                    cwd = data.get("cwd")
-                    if cwd and cwd.startswith("/"):
-                        return cwd
-                except (json.JSONDecodeError, KeyError):
-                    continue
-    except Exception:
-        pass
-    return None
+# Shared JSONL session parsing (see lib/parser.py).
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from parser import parse_session_meta, get_session_start  # noqa: E402,F401
 
 
 def parse_session(jsonl_path):
-    """Parse a session JSONL file for metadata."""
-    session_id = os.path.basename(jsonl_path).replace(".jsonl", "")
-    session_name = None
-    first_msg = None
-    cwd = None
-    user_msg_count = 0
-
-    try:
-        with open(jsonl_path, "r") as f:
-            for line in f:
-                try:
-                    data = json.loads(line)
-
-                    # Get cwd from first entry that has it
-                    if not cwd:
-                        c = data.get("cwd")
-                        if c and c.startswith("/"):
-                            cwd = c
-
-                    # Session name from custom-title
-                    if data.get("type") == "custom-title":
-                        session_name = data.get("customTitle")
-
-                    # Fallback name from summary
-                    if data.get("type") == "summary":
-                        t = data.get("summary", {}).get("title")
-                        if t and not session_name:
-                            session_name = t
-
-                    # First user message for preview
-                    if data.get("type") == "user":
-                        msg = data.get("message", {})
-                        if msg.get("role") == "user":
-                            content = msg.get("content", "")
-                            # Skip tool results
-                            if isinstance(content, list):
-                                # Check if it's just tool results
-                                has_text = False
-                                for c in content:
-                                    if isinstance(c, dict):
-                                        if c.get("type") == "tool_result":
-                                            continue
-                                        if c.get("type") == "text":
-                                            has_text = True
-                                            if not first_msg:
-                                                first_msg = c["text"][:120].replace("\n", " ").strip()
-                                if not has_text:
-                                    continue
-                            elif isinstance(content, str) and content.strip():
-                                if not first_msg:
-                                    first_msg = content[:120].replace("\n", " ").strip()
-                            else:
-                                continue
-                            user_msg_count += 1
-
-                except (json.JSONDecodeError, KeyError, AttributeError, TypeError):
-                    continue
-    except Exception as e:
-        print(
-            f"  Warning: failed to parse {jsonl_path}: {type(e).__name__}: {e}",
-            file=sys.stderr,
-        )
+    """Thin adapter over parse_session_meta() that produces the dict shape
+    this command's main() expects."""
+    meta = parse_session_meta(jsonl_path, first_msg_len=120)
+    if meta is None:
         return None
 
-    mtime = os.path.getmtime(jsonl_path)
-    last_activity = datetime.fromtimestamp(mtime)
-    session_start = get_session_start(jsonl_path)
-    size_kb = os.path.getsize(jsonl_path) / 1024
+    session_start = meta["session_start"]
+    last_activity = meta["last_activity"]
 
     return {
-        "id": session_id,
-        "dir": cwd or "(unknown)",
-        "name": session_name,
-        "first_msg": first_msg or "(empty session)",
+        "id": meta["id"],
+        "dir": meta["cwd"] or "(unknown)",
+        "name": meta["session_name"],
+        "first_msg": meta["first_message"] or "(empty session)",
         "date": session_start.strftime("%Y-%m-%d %H:%M"),
         "session_start": session_start,
         "last_activity": last_activity,
-        "mtime": mtime,
-        "size": size_kb,
-        "user_msg_count": user_msg_count,
+        "mtime": last_activity.timestamp(),
+        "size": meta["size_kb"],
+        "user_msg_count": meta["user_msg_count"],
     }
 
 
@@ -187,7 +90,7 @@ def main():
         print(f"  Search: {YELLOW}{search}{RESET}")
     print()
     print(f"{'#':<4} {'Date':<18} {'Name':<30} {'Directory':<40} {'Size':>6}")
-    print("\u2500" * 104)
+    print("─" * 104)
 
     display = sessions if count == 0 else sessions[:count]
     for i, s in enumerate(display, 1):
