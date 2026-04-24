@@ -158,8 +158,12 @@ def extract_name(project_name, messages, cwd):
     return name
 
 
-def get_session_info(jsonl_path):
-    """Get cwd, custom-title status, and first N user messages from a session."""
+def get_session_info(jsonl_path, force_overwrite=False):
+    """Get cwd, custom-title status, and first N user messages from a session.
+
+    With force_overwrite=True, continues scanning past a custom-title entry so
+    we can still collect messages for re-naming (caller decides whether to
+    actually overwrite)."""
     cwd = ""
     has_title = False
     messages = []
@@ -172,7 +176,8 @@ def get_session_info(jsonl_path):
 
                     if data.get("type") == "custom-title":
                         has_title = True
-                        return cwd, has_title, messages  # Early exit
+                        if not force_overwrite:
+                            return cwd, has_title, messages  # Early exit
 
                     if not cwd and data.get("cwd"):
                         cwd = data["cwd"]
@@ -203,6 +208,7 @@ def get_session_info(jsonl_path):
 
 def main():
     force = "--force" in sys.argv
+    overwrite = "--overwrite" in sys.argv
 
     home = os.path.expanduser("~")
     base = os.path.join(home, ".claude", "projects")
@@ -210,6 +216,7 @@ def main():
     unnamed = []
     named_count = 0
     skipped_count = 0
+    overwrite_count = 0
 
     BOLD = "\033[1m"
     DIM = "\033[2m"
@@ -219,11 +226,14 @@ def main():
     RESET = "\033[0m"
 
     for jsonl_path in glob.glob(f"{base}/**/*.jsonl", recursive=True):
-        cwd, has_title, messages = get_session_info(jsonl_path)
+        cwd, has_title, messages = get_session_info(jsonl_path, force_overwrite=overwrite)
 
-        if has_title:
+        if has_title and not overwrite:
             skipped_count += 1
             continue
+
+        if has_title and overwrite:
+            overwrite_count += 1
 
         if not messages:
             continue
@@ -249,7 +259,10 @@ def main():
         return
 
     print(f"\n{BOLD}Auto-naming sessions{RESET}")
-    print(f"  Already named: {skipped_count}")
+    if overwrite:
+        print(f"  Already named (will overwrite): {overwrite_count}")
+    else:
+        print(f"  Already named (skipped): {skipped_count}")
     print(f"  To name: {len(unnamed)}")
     print()
 
