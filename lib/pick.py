@@ -13,7 +13,7 @@ from parser import parse_session_meta, get_session_start, is_paperclip_session  
 
 
 def get_sessions(show_all=False):
-    """Get all sessions sorted by session_start (most recent first).
+    """Get all sessions sorted by last_activity (most recently touched first).
 
     Paperclip agent sub-sessions are filtered out unless show_all=True."""
     home = os.path.expanduser("~")
@@ -32,7 +32,7 @@ def get_sessions(show_all=False):
         cwd = meta["cwd"]
         session_name = meta["session_name"]
         first_msg = meta["first_message"]
-        session_start = meta["session_start"]
+        last_activity = meta["last_activity"]
 
         short_dir = cwd or "(unknown)"
         if short_dir.startswith(home + "/"):
@@ -41,9 +41,9 @@ def get_sessions(show_all=False):
             short_dir = "~"
 
         name = session_name or first_msg or "(empty)"
-        line = f"{session_start.strftime('%m-%d %H:%M')}  {name[:40]:<40}  {short_dir:<35}  {session_id}"
+        line = f"{last_activity.strftime('%m-%d %H:%M')}  {name[:40]:<40}  {short_dir:<35}  {session_id}"
 
-        sessions.append((session_start.timestamp(), line, session_id))
+        sessions.append((last_activity.timestamp(), line, session_id))
 
     sessions.sort(key=lambda x: -x[0])
     return sessions

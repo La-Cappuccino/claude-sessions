@@ -25,7 +25,7 @@ def parse_session(jsonl_path):
         "dir": meta["cwd"] or "(unknown)",
         "name": meta["session_name"],
         "first_msg": meta["first_message"] or "(empty session)",
-        "date": session_start.strftime("%Y-%m-%d %H:%M"),
+        "date": last_activity.strftime("%Y-%m-%d %H:%M"),
         "session_start": session_start,
         "last_activity": last_activity,
         "mtime": last_activity.timestamp(),
@@ -64,7 +64,12 @@ def main():
         if s:
             sessions.append(s)
 
-    sessions.sort(key=lambda x: x["session_start"], reverse=True)
+    # Sort by last_activity (file mtime, now reliable after repairing
+    # name-command pollution). This is "what did I last touch?" — the
+    # question the user is actually asking when scanning the list.
+    # session_start (creation time) is shown as a dim suffix when it
+    # differs meaningfully from last_activity.
+    sessions.sort(key=lambda x: x["last_activity"], reverse=True)
 
     # Filter out Paperclip agent sub-sessions by default. After recursive glob,
     # agent heartbeats can swamp daily views — hide unless --all.
@@ -115,13 +120,13 @@ def main():
         name_color = WHITE if s["name"] else DIM
         size_str = f"{s['size']:.0f}KB"
 
-        # Show last-active annotation when session_start and last_activity
-        # differ by more than 1 day — reveals long-running / resumed sessions.
+        # Show original-start annotation when last_activity and session_start
+        # differ by more than 1 day — reveals resumed-after-long-gap sessions.
         last_active_suffix = ""
         delta = s["last_activity"] - s["session_start"]
         if delta.total_seconds() > 86400:
             last_active_suffix = (
-                f" {DIM}(last active {s['last_activity'].strftime('%Y-%m-%d')}){RESET}"
+                f" {DIM}(started {s['session_start'].strftime('%Y-%m-%d')}){RESET}"
             )
 
         print(
