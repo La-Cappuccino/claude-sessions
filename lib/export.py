@@ -90,7 +90,10 @@ def main():
         if s:
             sessions.append(s)
 
-    sessions.sort(key=lambda x: x["start_date"], reverse=True)
+    # Sort by last_activity (matches list/pick behavior). start_date is
+    # creation time and never updates on resume — wrong key for "most
+    # recent first".
+    sessions.sort(key=lambda x: x["last_activity"], reverse=True)
 
     output = json.dumps(sessions, indent=2, ensure_ascii=False)
 
