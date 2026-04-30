@@ -37,6 +37,9 @@ case "$CMD" in
   export)
     python3 "$SCRIPT_DIR/lib/export.py" "$@"
     ;;
+  resume-last|last|r)
+    python3 "$SCRIPT_DIR/lib/resume_last.py" "$@"
+    ;;
   help|-h|--help)
     echo ""
     echo "  Claude Code Session Manager"
@@ -49,6 +52,7 @@ case "$CMD" in
     echo "    clean [--force] [--tiny]  Delete empty sessions"
     echo "    stats [days]              Token/cost statistics"
     echo "    pick                      Fuzzy picker (requires fzf)"
+    echo "    resume-last [--exec]      Resume most recent session ANY directory"
     echo "    export [--output file]    Export session index as JSON"
     echo "    help                      Show this help"
     echo ""
@@ -61,6 +65,8 @@ case "$CMD" in
     echo "    sessions clean --force    Delete empty sessions"
     echo "    sessions name --force     Auto-name all unnamed sessions"
     echo "    sessions pick             Fuzzy search + resume"
+    echo "    sessions resume-last      Show most-recent across all dirs"
+    echo "    sessions resume-last -x   Resume it immediately"
     echo "    sessions export           JSON to stdout"
     echo ""
     ;;
