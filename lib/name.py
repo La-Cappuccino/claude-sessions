@@ -284,7 +284,8 @@ def main():
             # Skip sessions that look live — Claude Code may still be writing
             # to them. Appending our custom-title line could corrupt a
             # mid-flight write or race with the client.
-            if time.time() - os.path.getmtime(s["path"]) < 60:
+            orig_stat = os.stat(s["path"])
+            if time.time() - orig_stat.st_mtime < 60:
                 print(f"  Skipped (live): {s['id'][:12]}...")
                 continue
 
@@ -311,6 +312,12 @@ def main():
             with open(s["path"], "a") as f:
                 prefix = "\n" if needs_leading_newline else ""
                 f.write(prefix + entry + "\n")
+            # Restore the original mtime so external pickers (AgentsView,
+            # Finder, etc.) that sort by file mtime keep showing the real
+            # "last opened" time. Without this, naming hundreds of sessions
+            # collapses their mtimes to "now" and destroys the freshness
+            # signal across the whole archive.
+            os.utime(s["path"], (orig_stat.st_atime, orig_stat.st_mtime))
             named_count += 1
         except Exception as e:
             print(f"  Error naming {s['id']}: {e}")
